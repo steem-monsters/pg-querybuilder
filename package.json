@@ -1,5 +1,5 @@
 {
-  "name": "pg-querybuilder",
+  "name": "@splinterlands/pg-querybuilder",
   "version": "1.0.0",
   "description": "Simple PostgreSQL query builder",
   "main": "querybuilder.js",
