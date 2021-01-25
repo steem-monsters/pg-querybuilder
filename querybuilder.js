@@ -185,6 +185,26 @@ async function updateSingle(type, data, filters, conn) {
 	return (updated && updated.length > 0) ? updated[0] : null;
 }
 
+async function upsert(type, keys, values, conn) {
+	if(!conn)
+		conn = pool;
+
+	let key_fields = Object.keys(keys);
+	let value_fields = Object.keys(values);
+	let all_fields = [...key_fields, ...value_fields];
+	
+	var params = [...key_fields.map(f => keys[f]), ...value_fields.map(f => values[f])];
+	var indices = all_fields.map((f, i) => '$' + (i + 1));
+	var value_clauses = value_fields.map((f, i) => f + ' = $' + (i + key_fields.length + 1));
+
+	let unique_fields = [...new Set(all_fields)];
+
+	let query_str = `INSERT INTO ${type}(${unique_fields.join(',')}) VALUES (${indices.slice(0, unique_fields.length).join(',')}) ON CONFLICT(${key_fields.join(',')}) DO UPDATE SET ${value_clauses.join(',')} RETURNING *`;
+	let upserted = (await query_internal(query_str, params, conn)).rows;
+	upserted.forEach(r => updateCache(type, r));
+	return (upserted && upserted.length > 0) ? upserted[0] : null;
+}
+
 async function increment(type, data, filters, conn) {
 	if(!conn)
 		conn = pool;
@@ -258,6 +278,7 @@ module.exports = {
 	count,
 	update,
 	updateSingle,
+	upsert,
 	increment,
 	incrementSingle,
 	insertMultiple,
