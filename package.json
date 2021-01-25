@@ -9,8 +9,6 @@
   "author": "yabapmatt",
   "license": "MIT",
   "dependencies": {
-    "@types/node": "^12.12.5",
-    "@types/pg": "^7.11.2",
     "pg": "^7.12.1"
   }
 }
