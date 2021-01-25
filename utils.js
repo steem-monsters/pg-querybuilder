@@ -6,8 +6,7 @@ function log(msg, level, color) {
 	if(color && log_colors[color])
 		msg = log_colors[color] + msg + log_colors.Reset;
 
-  if(level <= config.logging_level)
-    console.log(new Date().toLocaleString() + ' - ' + msg); 
+  console.log(new Date().toLocaleString() + ' - ' + msg); 
 }
 var log_colors = {
 	Reset: "\x1b[0m",

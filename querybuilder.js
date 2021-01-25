@@ -1,5 +1,6 @@
 const { Pool } = require('pg');
 const utils = require('./utils');
+const { QueryBuilder } = require('./querybuilder2');
 
 let pool = null;
 let _config = {};
@@ -285,5 +286,6 @@ module.exports = {
 	deleteRows,
 	sum,
 	transaction,
-	deleteSingle
+	deleteSingle,
+	QueryBuilder
 }
