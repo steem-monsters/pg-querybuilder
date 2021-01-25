@@ -6,8 +6,7 @@ function log(msg, level, color) {
 	if(color && log_colors[color])
 		msg = log_colors[color] + msg + log_colors.Reset;
 
-  if(level <= config.logging_level)
-    console.log(new Date().toLocaleString() + ' - ' + msg); 
+  console.log(new Date().toLocaleString() + ' - ' + msg); 
 }
 var log_colors = {
 	Reset: "\x1b[0m",
@@ -37,4 +36,14 @@ var log_colors = {
 	BgWhite: "\x1b[47m"
 }
 
-module.exports = { log };
+function inClause(start, list) {
+  // I'm sure there's a better way to do this but I don't know how...
+  var in_clause = '(';
+  for(var i = 0; i < list.length; i++)
+    in_clause += '$' + (i + start) + ((i < list.length - 1) ? ',' : '');
+  in_clause += ')';
+
+  return in_clause;
+}
+
+module.exports = { log, inClause };

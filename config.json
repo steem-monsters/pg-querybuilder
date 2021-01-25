@@ -1,0 +1,11 @@
+
+{
+	"slow_query_limit": 1000,
+	"connection": {
+		"user": "postgres",
+		"host": "localhost",
+		"database": "steemmonsters",
+		"password": "nsmrvbpn",
+		"port": "5433"
+	}
+}

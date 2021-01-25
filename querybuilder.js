@@ -151,6 +151,23 @@ async function insertMultiple(type, data, conn) {
 	return (await query('INSERT INTO ' + type + '(' + fields.join(',') + ') VALUES ' + values + ' RETURNING *', params, conn)).rows;
 }
 
+async function upsert(type, keys, values, conn) {
+	if(!conn)
+		conn = pool;
+
+	let key_fields = Object.keys(keys);
+	let value_fields = Object.keys(values);
+	let all_fields = [...key_fields, ...value_fields];
+	
+	var params = [...key_fields.map(f => keys[f]), ...value_fields.map(f => values[f])];
+	var indices = all_fields.map((f, i) => '$' + (i + 1));
+	var value_clauses = value_fields.map((f, i) => f + ' = $' + (i + key_fields.length + 1));
+
+	let query_str = `INSERT INTO ${type}(${all_fields.join(',')}) VALUES (${indices.join(',')}) ON CONFLICT(${key_fields.join(',')}) DO UPDATE SET ${value_clauses.join(',')} RETURNING *`;
+	let upserted = (await query_internal(query_str, params, conn)).rows;
+	return (upserted && upserted.length > 0) ? upserted[0] : null;
+}
+
 async function deleteRows(type, filters, conn) {
 	if(!conn)
 		conn = pool;
@@ -264,5 +281,6 @@ module.exports = {
 	deleteRows,
 	sum,
 	transaction,
-	deleteSingle
+	deleteSingle,
+	upsert
 }
