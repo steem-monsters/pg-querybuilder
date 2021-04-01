@@ -1,6 +1,6 @@
 {
   "name": "@splinterlands/pg-querybuilder",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Simple PostgreSQL query builder",
   "main": "querybuilder.js",
   "scripts": {
@@ -9,6 +9,6 @@
   "author": "yabapmatt",
   "license": "MIT",
   "dependencies": {
-    "pg": "^7.12.1"
+    "pg": "^8.5.1"
   }
 }
