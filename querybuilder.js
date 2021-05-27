@@ -202,7 +202,6 @@ async function upsert(type, keys, values, conn) {
 
 	let query_str = `INSERT INTO ${type}(${unique_fields.join(',')}) VALUES (${indices.slice(0, unique_fields.length).join(',')}) ON CONFLICT(${key_fields.join(',')}) DO UPDATE SET ${value_clauses.join(',')} RETURNING *`;
 	let upserted = (await query(query_str, params, conn)).rows;
-	upserted.forEach(r => updateCache(type, r));
 	return (upserted && upserted.length > 0) ? upserted[0] : null;
 }
 
