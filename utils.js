@@ -36,4 +36,13 @@ var log_colors = {
 	BgWhite: "\x1b[47m"
 }
 
-module.exports = { log };
+function inClause(start, list) {
+	// I'm sure there's a better way to do this but I don't know how...
+	let in_clause = '(';
+	for (let i = 0; i < list.length; i++) in_clause += `$${i + start}${i < list.length - 1 ? ',' : ''}`;
+	in_clause += ')';
+
+	return in_clause;
+}
+
+module.exports = { log, inClause };

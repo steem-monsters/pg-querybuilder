@@ -23,7 +23,7 @@ async function count(type, filters, conn) {
 
 	let parsed_filters = parseFilters(filters);
 
-	query_str = 'SELECT COUNT(*) as "count" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
+	const query_str = 'SELECT COUNT(*) as "count" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
 	return (await query(query_str, parsed_filters.params, conn)).rows[0].count;
 }
 
@@ -33,7 +33,7 @@ async function sum(type, sum_column, filters, conn) {
 
 	let parsed_filters = parseFilters(filters);
 
-	query_str = 'SELECT SUM(' + sum_column + ') as "sum" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
+	const query_str = 'SELECT SUM(' + sum_column + ') as "sum" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
 	return (await query(query_str, parsed_filters.params, conn)).rows[0].sum;
 }
 
@@ -109,7 +109,7 @@ async function lookup(type, options, conn) {
 			query_str += ' LIMIT ' + options.limit;
 
 		if(options.offset)
-			query_str += ' OFFSET ' + offset;
+			query_str += ' OFFSET ' + options.offset;
 
 		return (await query(query_str, params, conn)).rows;
 	} catch (err) {
