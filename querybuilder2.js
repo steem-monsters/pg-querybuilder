@@ -23,7 +23,7 @@ class QueryBuilder {
 
 		let parsed_filters = this.parseFilters(filters);
 
-		query_str = 'SELECT COUNT(*) as "count" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
+		const query_str = 'SELECT COUNT(*) as "count" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
 		return (await this.query(query_str, parsed_filters.params, conn)).rows[0].count;
 	}
 
@@ -33,7 +33,7 @@ class QueryBuilder {
 
 		let parsed_filters = this.parseFilters(filters);
 
-		query_str = 'SELECT SUM(' + sum_column + ') as "sum" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
+		const query_str = 'SELECT SUM(' + sum_column + ') as "sum" FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ');
 		return (await this.query(query_str, parsed_filters.params, conn)).rows[0].sum;
 	}
 
@@ -90,7 +90,8 @@ class QueryBuilder {
 				options = {};
 
 			var params = [];
-			var query_str = 'SELECT * FROM ' + type;
+			const columns = (options.columns && Array.isArray(options.columns)) ? options.columns.join(', ') : '*';
+			var query_str = `SELECT ${columns} FROM ${type}`;
 
 			if(options.filters && Object.keys(options.filters).length > 0) {
 				var filters = this.parseFilters(options.filters);
@@ -109,7 +110,7 @@ class QueryBuilder {
 				query_str += ' LIMIT ' + options.limit;
 
 			if(options.offset)
-				query_str += ' OFFSET ' + offset;
+				query_str += ' OFFSET ' + options.offset;
 
 			return (await this.query(query_str, params, conn)).rows;
 		} catch (err) {
