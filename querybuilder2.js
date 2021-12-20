@@ -213,12 +213,10 @@ class QueryBuilder {
 		var data_fields = Object.keys(data);
 		var data_clauses = data_fields.map((f, i) => f + ' = ' + f + ' + $' + (i + 1));
 
-		var filter_fields = Object.keys(filters);
-		var filter_clauses = filter_fields.map((f, i) => f + ' = $' + (i + data_fields.length + 1));
+		var parsed_filters = this.parseFilters(filters, data_fields.length);
+		var params = data_fields.map(f => data[f]).concat(parsed_filters.params);
 
-		var params = data_fields.map(f => data[f]).concat(filter_fields.map(f => filters[f]));
-
-		var query_str = 'UPDATE ' + type + ' SET ' + data_clauses.join(',') + ' WHERE ' + filter_clauses.join(' AND ') + ' RETURNING *';
+		var query_str = 'UPDATE ' + type + ' SET ' + data_clauses.join(',') + ' WHERE ' + parsed_filters.clauses.join(' AND ') + ' RETURNING *';
 		return (await this.query(query_str, params, conn)).rows;
 	}
 
