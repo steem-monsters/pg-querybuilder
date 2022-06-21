@@ -90,7 +90,8 @@ async function lookup(type, options, conn) {
 			options = {};
 
 		var params = [];
-		var query_str = 'SELECT * FROM ' + type;
+		const columns = (options.columns && Array.isArray(options.columns)) ? options.columns.join(', ') : '*';
+		var query_str = `SELECT ${columns} FROM ${type}`;
 
 		if(options.filters && Object.keys(options.filters).length > 0) {
 			var filters = parseFilters(options.filters);
@@ -118,8 +119,8 @@ async function lookup(type, options, conn) {
 	}
 }
 
-async function lookupSingle(type, filters, conn) {
-	var records = await lookup(type, { filters: filters }, conn);
+async function lookupSingle(type, filters, conn, columns) {
+	var records = await lookup(type, { filters, columns}, conn);
 	return (records && records.length > 0) ? records[0] : null;
 }
 
