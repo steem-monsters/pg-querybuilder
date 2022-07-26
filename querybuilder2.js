@@ -119,8 +119,8 @@ class QueryBuilder {
 		}
 	}
 
-	async lookupSingle(type, filters, conn) {
-		var records = await this.lookup(type, { filters: filters }, conn);
+	async lookupSingle(type, filters, conn, columns) {
+		var records = await this.lookup(type, { filters, columns }, conn);
 		return (records && records.length > 0) ? records[0] : null;
 	}
 
