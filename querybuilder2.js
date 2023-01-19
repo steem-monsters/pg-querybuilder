@@ -83,161 +83,214 @@ class QueryBuilder {
 
 	async lookup(type, options, conn) {
 		try {
-			if(!conn)
-				conn = this.pool;
-
-			if(!options)
-				options = {};
-
-			var params = [];
-			const columns = (options.columns && Array.isArray(options.columns)) ? options.columns.join(', ') : '*';
-			var query_str = `SELECT ${columns} FROM ${type}`;
-
-			if(options.filters && Object.keys(options.filters).length > 0) {
-				var filters = this.parseFilters(options.filters);
+			if (!conn) conn = pool;
+	
+			if (!options) options = {};
+	
+			let params = [];
+			const columns = options.columns && Array.isArray(options.columns) ? options.columns.join(', ') : '*';
+			let query_str = `SELECT ${columns} FROM ${type}`;
+	
+			if (options.filters && Object.keys(options.filters).length > 0) {
+				const filters = parseFilters(options.filters);
 				params = filters.params;
-				query_str += ' WHERE ' + filters.clauses.join(' AND ');
+				query_str += ` WHERE ${filters.clauses.join(' AND ')}`;
 			}
-
-			if(options.sort_by) {
-				query_str += ' ORDER BY ' + options.sort_by;
-
-				if(options.sort_descending)
-					query_str += ' DESC'
+	
+			if (options.sort_by) {
+				query_str += ` ORDER BY ${options.sort_by}`;
+	
+				if (options.sort_descending) query_str += ' DESC';
 			}
-
-			if(options.limit)
-				query_str += ' LIMIT ' + options.limit;
-
-			if(options.offset)
-				query_str += ' OFFSET ' + options.offset;
-
-			return (await this.query(query_str, params, conn)).rows;
+	
+			if (options.limit) query_str += ` LIMIT ${options.limit}`;
+			if (options.offset) query_str += ` OFFSET ${options.offset}`;
+			if (options.lockLevel) {
+				if (options.lockLevel) query_str += ` FOR ${options.lockLevel}`;
+	
+				if (options.nowait) query_str += ' NOWAIT';
+				else if (options.skip_locked) query_str += ' SKIP LOCKED';
+			}
+	
+			return (await query_internal(query_str, params, conn)).rows;
 		} catch (err) {
 			utils.log(err.message, 1, 'Red');
 			utils.log(err.stack, 1, 'Red');
 		}
 	}
-
-	async lookupSingle(type, filters, conn, columns) {
-		var records = await this.lookup(type, { filters, columns }, conn);
-		return (records && records.length > 0) ? records[0] : null;
+	
+	async lookupSingle(type, filters, conn, options) {
+		const records = await lookup(type, { filters, ...options }, conn);
+		return records && records.length > 0 ? records[0] : null;
 	}
 
-	async insert(type, data, conn) {
-		if(!conn)
-			conn = this.pool;
-
-		var fields = Object.keys(data);
-		var params = fields.map(f => data[f]);
-		var indices = fields.map((f, i) => '$' + (i + 1));
-
-		return (await this.query('INSERT INTO ' + type + '(' + fields.join(',') + ') VALUES (' + indices.join(',') + ') RETURNING *', params, conn)).rows[0];
+	async insert(type, data, conn, no_return, on_conflict_clause) {
+		if (!conn) conn = pool;
+	
+		const fields = Object.keys(data);
+		const params = fields.map((f) => data[f]);
+		const indices = fields.map((f, i) => `$${i + 1}`);
+	
+		let query_str = `INSERT INTO ${type}(${fields.join(',')}) VALUES (${indices.join(',')})`;
+	
+		if (!no_return) query_str += RETURNING_STR;
+		if (on_conflict_clause) query_str += ` ${on_conflict_clause}`;
+	
+		const ret_val = await query_internal(query_str, params, conn);
+		return no_return ? ret_val.rowCount : ret_val.rows.length > 0 ? ret_val.rows[0] : null;
 	}
-
-	async insertMultiple(type, data, conn) {
-		if(!conn)
-			conn = this.pool;
-
-		var fields = Object.keys(data[0]);
-		var params = [];
-		var values = '';
-
-		for(var i = 0; i < data.length; i++) {
-			var obj = data[i];
-			params = params.concat(fields.map(f => obj[f]));
-			var indices = fields.map((f, d) => '$' + (i * fields.length + d + 1));
-			values += (i > 0 ? ',' : '') + '(' + indices.join(',') + ')';
+	
+	async insertMultiple(type, data, conn, no_return) {
+		if (!conn) conn = pool;
+	
+		const fields = Object.keys(data[0]);
+		let params = [];
+		let values = '';
+	
+		for (let i = 0; i < data.length; i++) {
+			const obj = data[i];
+			params = params.concat(fields.map((f) => obj[f]));
+			const indices = fields.map((f, d) => `$${i * fields.length + d + 1}`);
+			values += `${i > 0 ? ',' : ''}(${indices.join(',')})`;
 		}
-		
-		return (await this.query('INSERT INTO ' + type + '(' + fields.join(',') + ') VALUES ' + values + ' RETURNING *', params, conn)).rows;
+	
+		let query_str = `INSERT INTO ${type}(${fields.join(',')}) VALUES ${values}`;
+	
+		if (!no_return) query_str += RETURNING_STR;
+	
+		const ret_val = await query_internal(query_str, params, conn);
+		return no_return ? ret_val.rowCount : ret_val.rows;
+	}
+	
+	async deleteRows(type, filters, conn, no_return) {
+		if (!conn) conn = pool;
+	
+		const parsed_filters = parseFilters(filters);
+	
+		let query_str = `DELETE FROM ${type} WHERE ${parsed_filters.clauses.join(' AND ')}`;
+	
+		if (!no_return) query_str += RETURNING_STR;
+	
+		return (await query_internal(query_str, parsed_filters.params, conn)).rows;
 	}
 
-	async deleteRows(type, filters, conn) {
-		if(!conn)
-			conn = this.pool;
-
-		var parsed_filters = this.parseFilters(filters);
-
-		var query_str = 'DELETE FROM ' + type + ' WHERE ' + parsed_filters.clauses.join(' AND ') + ' RETURNING *';
-		return (await this.query(query_str, parsed_filters.params, conn)).rows;
+	async deleteSingle(type, filters, conn, no_return) {
+		const deleted = await deleteRows(type, filters, conn, no_return);
+		return deleted && deleted.length > 0 ? deleted[0] : null;
+	}
+	
+	async update(type, data, filters, conn, no_return) {
+		if (!conn) conn = pool;
+	
+		const data_fields = Object.keys(data);
+		const data_clauses = data_fields.map((f, i) => `${f} = $${i + 1}`);
+	
+		const parsed_filters = parseFilters(filters, data_fields.length);
+		const params = data_fields.map((f) => data[f]).concat(parsed_filters.params);
+	
+		let query_str = `UPDATE ${type} SET ${data_clauses.join(',')} WHERE ${parsed_filters.clauses.join(' AND ')}`;
+		if (!no_return) {
+			query_str += RETURNING_STR;
+		}
+		return (await query_internal(query_str, params, conn)).rows;
+	}
+	
+	async updateSingle(type, data, filters, conn, no_return) {
+		const updated = await update(type, data, filters, conn, no_return);
+		return updated && updated.length > 0 ? updated[0] : null;
+	}
+	
+	async upsert(type, keys, values, conn, no_return) {
+		if (!conn) conn = pool;
+	
+		const key_fields = Object.keys(keys);
+		const value_fields = Object.keys(values);
+		const all_fields = [...key_fields, ...value_fields];
+	
+		const params = [...key_fields.map((f) => keys[f]), ...value_fields.map((f) => values[f])];
+		const indices = all_fields.map((f, i) => `$${i + 1}`);
+		const value_clauses = value_fields.map((f, i) => `${f} = $${i + key_fields.length + 1}`);
+	
+		const unique_fields = [...new Set(all_fields)];
+	
+		let query_str = `INSERT INTO ${type}(${unique_fields.join(',')}) VALUES (${indices.slice(0, unique_fields.length).join(',')}) ON CONFLICT(${key_fields.join(',')}) DO UPDATE SET ${value_clauses.join(
+			','
+		)}`;
+		if (!no_return) {
+			query_str += RETURNING_STR;
+		}
+		const upserted = (await query_internal(query_str, params, conn)).rows;
+		return upserted && upserted.length > 0 ? upserted[0] : null;
 	}
 
-	async deleteSingle(type, filters, conn) {
-		var deleted = await this.deleteRows(type, filters, conn);
-		return (deleted && deleted.length > 0) ? deleted[0] : null;
+	async increment(type, data, filters, conn, no_return) {
+		if (!conn) conn = pool;
+	
+		const data_fields = Object.keys(data);
+		const data_clauses = data_fields.map((f, i) => `${f} = ${f} + $${i + 1}`);
+	
+		const parsed_filters = parseFilters(filters, data_fields.length);
+		const params = data_fields.map((f) => data[f]).concat(parsed_filters.params);
+	
+		let query_str = `UPDATE ${type} SET ${data_clauses.join(',')} WHERE ${parsed_filters.clauses.join(' AND ')}`;
+	
+		if (!no_return) query_str += RETURNING_STR;
+	
+		const ret_val = await query_internal(query_str, params, conn);
+		return no_return ? ret_val.rowCount : ret_val.rows;
+	}
+	
+	async incrementSingle(type, data, filters, conn, no_return) {
+		const records = await increment(type, data, filters, conn, no_return);
+		return no_return ? records : records && records.length > 0 ? records[0] : null;
 	}
 
-	async update(type, data, filters, conn) {
-		if(!conn)
-			conn = this.pool;
-
-		var data_fields = Object.keys(data);
-		var data_clauses = data_fields.map((f, i) => f + ' = $' + (i + 1));
-
-		var parsed_filters = this.parseFilters(filters, data_fields.length);
-		var params = data_fields.map(f => data[f]).concat(parsed_filters.params);
-
-		var query_str = 'UPDATE ' + type + ' SET ' + data_clauses.join(',') + ' WHERE ' + parsed_filters.clauses.join(' AND ') + ' RETURNING *';
-		return (await this.query(query_str, params, conn)).rows;
+	async readQuery(text, params, retries) {
+		try {
+			const start_time = Date.now();
+			const result = await pool.query(text, params);
+			const total_time = Date.now() - start_time;
+	
+			if (config.slow_query_time && total_time > config.slow_query_time) utils.log(`Slow query: ${text}, time: ${total_time}`, 1, 'Yellow');
+	
+			return result;
+		} catch (err) {
+			utils.log(`Query failed (read-replica) [${text}], Error: ${err.message}`, 0, 'Red');
+		}
 	}
-
-	async updateSingle(type, data, filters, conn) {
-		var updated = await this.update(type, data, filters, conn);
-		return (updated && updated.length > 0) ? updated[0] : null;
-	}
-
-	async upsert(type, keys, values, conn) {
-		if(!conn)
-			conn = this.pool;
-
-		let key_fields = Object.keys(keys);
-		let value_fields = Object.keys(values);
-		let all_fields = [...key_fields, ...value_fields];
-		
-		var params = [...key_fields.map(f => keys[f]), ...value_fields.map(f => values[f])];
-		var indices = all_fields.map((f, i) => '$' + (i + 1));
-		var value_clauses = value_fields.map((f, i) => f + ' = $' + (i + key_fields.length + 1));
-
-		let unique_fields = [...new Set(all_fields)];
-
-		let query_str = `INSERT INTO ${type}(${unique_fields.join(',')}) VALUES (${indices.slice(0, unique_fields.length).join(',')}) ON CONFLICT(${key_fields.join(',')}) DO UPDATE SET ${value_clauses.join(',')} RETURNING *`;
-		let upserted = (await this.query(query_str, params, conn)).rows;
-		return (upserted && upserted.length > 0) ? upserted[0] : null;
-	}
-
-	async increment(type, data, filters, conn) {
-		if(!conn)
-			conn = this.pool;
-
-		var data_fields = Object.keys(data);
-		var data_clauses = data_fields.map((f, i) => f + ' = ' + f + ' + $' + (i + 1));
-
-		var parsed_filters = this.parseFilters(filters, data_fields.length);
-		var params = data_fields.map(f => data[f]).concat(parsed_filters.params);
-
-		var query_str = 'UPDATE ' + type + ' SET ' + data_clauses.join(',') + ' WHERE ' + parsed_filters.clauses.join(' AND ') + ' RETURNING *';
-		return (await this.query(query_str, params, conn)).rows;
-	}
-
-	async incrementSingle(type, data, filters, conn) {
-		var records = await this.increment(type, data, filters, conn);
-		return (records && records.length > 0) ? records[0] : null;
+	
+	async query(text, params, conn, retries) {
+		try {
+			if (!conn) conn = pool;
+	
+			const start_time = Date.now();
+			const result = await conn.query(text, params);
+			const total_time = Date.now() - start_time;
+	
+			if (config.slow_query_time && total_time > config.slow_query_time) {
+				utils.log(`Slow query: ${text},  Param: ${params && params.length > 0 ? params[0] : ''}, Time: ${total_time}`, 1, 'Yellow');
+			}
+	
+			return result;
+		} catch (err) {
+			utils.log(`Query failed [${text}], Error: ${err.message} Param: ${params && params.length > 0 ? params[0] : ''}`, 0, 'Red');
+			return null;
+		}
 	}
 
 	async transaction(callback) {
-		const client = await this.pool.connect();
-
+		const client = new ProxyClient(await pool.connect());
+	
 		try {
 			await client.query('BEGIN');
-
-			let result = await callback(client);
-
-			if(result && result.error) {
+	
+			const result = await callback(client);
+	
+			if (result && result.error) {
 				await client.query('ROLLBACK');
 				return result;
 			}
-
+	
 			await client.query('COMMIT');
 			return result;
 		} catch (e) {
@@ -245,6 +298,29 @@ class QueryBuilder {
 			throw e;
 		} finally {
 			client.release();
+		}
+	}
+	
+	async transaction_fake(callback) {
+		return callback(pool);
+	}
+
+	async query_internal(text, params, conn) {
+		if (!conn) conn = pool;
+	
+		try {
+			const start_time = Date.now();
+			const result = await conn.query(text, params);
+			const total_time = Date.now() - start_time;
+	
+			if (config.slow_query_time && total_time > config.slow_query_time) {
+				utils.log(`Slow query: ${text}, time: ${total_time}`, 1, 'Yellow');
+			}
+	
+			return result;
+		} catch (err) {
+			utils.log(`Query failed [${text}], Error: ${err.message} Param: ${params && params.length > 0 ? params[0] : ''}`, 0, 'Red');
+			throw err;
 		}
 	}
 
