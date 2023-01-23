@@ -65,7 +65,7 @@ class QueryBuilder {
 	}
 
 	parseParams(filters) {
-		var params = [];
+		let params = [];
 
 		Object.keys(filters).forEach(f => {
 			if(Array.isArray(filters[f]))
@@ -279,7 +279,7 @@ class QueryBuilder {
 	}
 
 	async transaction(callback) {
-		const client = new ProxyClient(await this.pool.connect());
+		const client = await this.pool.connect();
 	
 		try {
 			await client.query('BEGIN');
@@ -325,13 +325,12 @@ class QueryBuilder {
 	}
 
 	async query(text, params, conn) {
-		if(!conn)
-			conn = this.pool;
+		if(!conn) conn = this.pool;
 
 		try {
-			var start_time = Date.now();
-			var result = await conn.query(text, params);
-			var total_time = Date.now() - start_time;
+			const start_time = Date.now();
+			const result = await conn.query(text, params);
+			const total_time = Date.now() - start_time;
 
 			if(this._config.slow_query_limit && total_time > this._config.slow_query_limit)
 				utils.log('Slow query: ' + text + ', time: ' + total_time, 1, 'Yellow');
