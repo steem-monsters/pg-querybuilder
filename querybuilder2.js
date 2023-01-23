@@ -251,7 +251,7 @@ class QueryBuilder {
 			const result = await this.pool.query(text, params);
 			const total_time = Date.now() - start_time;
 	
-			if (config.slow_query_time && total_time > config.slow_query_time) utils.log(`Slow query: ${text}, time: ${total_time}`, 1, 'Yellow');
+			if (this._config.slow_query_time && total_time > this._config.slow_query_time) utils.log(`Slow query: ${text}, time: ${total_time}`, 1, 'Yellow');
 	
 			return result;
 		} catch (err) {
@@ -267,7 +267,7 @@ class QueryBuilder {
 			const result = await conn.query(text, params);
 			const total_time = Date.now() - start_time;
 	
-			if (config.slow_query_time && total_time > config.slow_query_time) {
+			if (this._config.slow_query_time && total_time > this._config.slow_query_time) {
 				utils.log(`Slow query: ${text},  Param: ${params && params.length > 0 ? params[0] : ''}, Time: ${total_time}`, 1, 'Yellow');
 			}
 	
@@ -313,7 +313,7 @@ class QueryBuilder {
 			const result = await conn.query(text, params);
 			const total_time = Date.now() - start_time;
 	
-			if (config.slow_query_time && total_time > config.slow_query_time) {
+			if (this._config.slow_query_time && total_time > this._config.slow_query_time) {
 				utils.log(`Slow query: ${text}, time: ${total_time}`, 1, 'Yellow');
 			}
 	
