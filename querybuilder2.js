@@ -65,7 +65,7 @@ class QueryBuilder {
 	}
 
 	parseParams(filters) {
-		var params = [];
+		let params = [];
 
 		Object.keys(filters).forEach(f => {
 			if(Array.isArray(filters[f]))
@@ -83,7 +83,7 @@ class QueryBuilder {
 
 	async lookup(type, options, conn) {
 		try {
-			if (!conn) conn = pool;
+			if (!conn) conn = this.pool;
 	
 			if (!options) options = {};
 	
@@ -92,7 +92,7 @@ class QueryBuilder {
 			let query_str = `SELECT ${columns} FROM ${type}`;
 	
 			if (options.filters && Object.keys(options.filters).length > 0) {
-				const filters = parseFilters(options.filters);
+				const filters = this.parseFilters(options.filters);
 				params = filters.params;
 				query_str += ` WHERE ${filters.clauses.join(' AND ')}`;
 			}
@@ -112,7 +112,7 @@ class QueryBuilder {
 				else if (options.skip_locked) query_str += ' SKIP LOCKED';
 			}
 	
-			return (await query_internal(query_str, params, conn)).rows;
+			return (await this.query_internal(query_str, params, conn)).rows;
 		} catch (err) {
 			utils.log(err.message, 1, 'Red');
 			utils.log(err.stack, 1, 'Red');
@@ -120,12 +120,12 @@ class QueryBuilder {
 	}
 	
 	async lookupSingle(type, filters, conn, options) {
-		const records = await lookup(type, { filters, ...options }, conn);
+		const records = await this.lookup(type, { filters, ...options }, conn);
 		return records && records.length > 0 ? records[0] : null;
 	}
 
 	async insert(type, data, conn, no_return, on_conflict_clause) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
 		const fields = Object.keys(data);
 		const params = fields.map((f) => data[f]);
@@ -136,12 +136,12 @@ class QueryBuilder {
 		if (!no_return) query_str += RETURNING_STR;
 		if (on_conflict_clause) query_str += ` ${on_conflict_clause}`;
 	
-		const ret_val = await query_internal(query_str, params, conn);
+		const ret_val = await this.query_internal(query_str, params, conn);
 		return no_return ? ret_val.rowCount : ret_val.rows.length > 0 ? ret_val.rows[0] : null;
 	}
 	
 	async insertMultiple(type, data, conn, no_return) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
 		const fields = Object.keys(data[0]);
 		let params = [];
@@ -158,50 +158,50 @@ class QueryBuilder {
 	
 		if (!no_return) query_str += RETURNING_STR;
 	
-		const ret_val = await query_internal(query_str, params, conn);
+		const ret_val = await this.query_internal(query_str, params, conn);
 		return no_return ? ret_val.rowCount : ret_val.rows;
 	}
 	
 	async deleteRows(type, filters, conn, no_return) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
-		const parsed_filters = parseFilters(filters);
+		const parsed_filters = this.parseFilters(filters);
 	
 		let query_str = `DELETE FROM ${type} WHERE ${parsed_filters.clauses.join(' AND ')}`;
 	
 		if (!no_return) query_str += RETURNING_STR;
 	
-		return (await query_internal(query_str, parsed_filters.params, conn)).rows;
+		return (await this.query_internal(query_str, parsed_filters.params, conn)).rows;
 	}
 
 	async deleteSingle(type, filters, conn, no_return) {
-		const deleted = await deleteRows(type, filters, conn, no_return);
+		const deleted = await this.deleteRows(type, filters, conn, no_return);
 		return deleted && deleted.length > 0 ? deleted[0] : null;
 	}
 	
 	async update(type, data, filters, conn, no_return) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
 		const data_fields = Object.keys(data);
 		const data_clauses = data_fields.map((f, i) => `${f} = $${i + 1}`);
 	
-		const parsed_filters = parseFilters(filters, data_fields.length);
+		const parsed_filters = this.parseFilters(filters, data_fields.length);
 		const params = data_fields.map((f) => data[f]).concat(parsed_filters.params);
 	
 		let query_str = `UPDATE ${type} SET ${data_clauses.join(',')} WHERE ${parsed_filters.clauses.join(' AND ')}`;
 		if (!no_return) {
 			query_str += RETURNING_STR;
 		}
-		return (await query_internal(query_str, params, conn)).rows;
+		return (await this.query_internal(query_str, params, conn)).rows;
 	}
 	
 	async updateSingle(type, data, filters, conn, no_return) {
-		const updated = await update(type, data, filters, conn, no_return);
+		const updated = await this.update(type, data, filters, conn, no_return);
 		return updated && updated.length > 0 ? updated[0] : null;
 	}
 	
 	async upsert(type, keys, values, conn, no_return) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
 		const key_fields = Object.keys(keys);
 		const value_fields = Object.keys(values);
@@ -219,36 +219,36 @@ class QueryBuilder {
 		if (!no_return) {
 			query_str += RETURNING_STR;
 		}
-		const upserted = (await query_internal(query_str, params, conn)).rows;
+		const upserted = (await this.query_internal(query_str, params, conn)).rows;
 		return upserted && upserted.length > 0 ? upserted[0] : null;
 	}
 
 	async increment(type, data, filters, conn, no_return) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
 		const data_fields = Object.keys(data);
 		const data_clauses = data_fields.map((f, i) => `${f} = ${f} + $${i + 1}`);
 	
-		const parsed_filters = parseFilters(filters, data_fields.length);
+		const parsed_filters = this.parseFilters(filters, data_fields.length);
 		const params = data_fields.map((f) => data[f]).concat(parsed_filters.params);
 	
 		let query_str = `UPDATE ${type} SET ${data_clauses.join(',')} WHERE ${parsed_filters.clauses.join(' AND ')}`;
 	
 		if (!no_return) query_str += RETURNING_STR;
 	
-		const ret_val = await query_internal(query_str, params, conn);
+		const ret_val = await this.query_internal(query_str, params, conn);
 		return no_return ? ret_val.rowCount : ret_val.rows;
 	}
 	
 	async incrementSingle(type, data, filters, conn, no_return) {
-		const records = await increment(type, data, filters, conn, no_return);
+		const records = await this.increment(type, data, filters, conn, no_return);
 		return no_return ? records : records && records.length > 0 ? records[0] : null;
 	}
 
 	async readQuery(text, params, retries) {
 		try {
 			const start_time = Date.now();
-			const result = await pool.query(text, params);
+			const result = await this.pool.query(text, params);
 			const total_time = Date.now() - start_time;
 	
 			if (config.slow_query_time && total_time > config.slow_query_time) utils.log(`Slow query: ${text}, time: ${total_time}`, 1, 'Yellow');
@@ -261,7 +261,7 @@ class QueryBuilder {
 	
 	async query(text, params, conn, retries) {
 		try {
-			if (!conn) conn = pool;
+			if (!conn) conn = this.pool;
 	
 			const start_time = Date.now();
 			const result = await conn.query(text, params);
@@ -279,7 +279,7 @@ class QueryBuilder {
 	}
 
 	async transaction(callback) {
-		const client = new ProxyClient(await pool.connect());
+		const client = await this.pool.connect();
 	
 		try {
 			await client.query('BEGIN');
@@ -302,11 +302,11 @@ class QueryBuilder {
 	}
 	
 	async transaction_fake(callback) {
-		return callback(pool);
+		return callback(this.pool);
 	}
 
 	async query_internal(text, params, conn) {
-		if (!conn) conn = pool;
+		if (!conn) conn = this.pool;
 	
 		try {
 			const start_time = Date.now();
@@ -325,13 +325,12 @@ class QueryBuilder {
 	}
 
 	async query(text, params, conn) {
-		if(!conn)
-			conn = this.pool;
+		if(!conn) conn = this.pool;
 
 		try {
-			var start_time = Date.now();
-			var result = await conn.query(text, params);
-			var total_time = Date.now() - start_time;
+			const start_time = Date.now();
+			const result = await conn.query(text, params);
+			const total_time = Date.now() - start_time;
 
 			if(this._config.slow_query_limit && total_time > this._config.slow_query_limit)
 				utils.log('Slow query: ' + text + ', time: ' + total_time, 1, 'Yellow');
