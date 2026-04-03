@@ -9,6 +9,6 @@
   "author": "yabapmatt",
   "license": "MIT",
   "dependencies": {
-    "pg": "^8.5.1"
+    "pg": "8.5.1"
   }
 }
